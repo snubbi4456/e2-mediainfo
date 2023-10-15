@@ -1,5 +1,4 @@
-﻿# -*- coding: utf-8 -*-
-#######################################################################
+﻿#######################################################################
 # maintainers: einfall/dhwz
 #
 # This plugin is free software, you are allowed to
@@ -9,32 +8,33 @@
 # This means you also have to distribute
 # source code of your modifications.
 #######################################################################
-from . import _
-from Components.Label import Label
-from Components.ConfigList import ConfigListScreen
+from os.path import isdir, splitext
+from random import choice
+import re
+import requests
+from string import ascii_letters, digits
+from threading import Thread
+from time import time
+
+from enigma import gFont, getDesktop, eTimer, eListboxPythonMultiContent, RT_HALIGN_LEFT, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, RT_VALIGN_CENTER, RT_WRAP
+
 from Components.ActionMap import ActionMap
+from Components.ConfigList import ConfigListScreen
 from Components.config import config, getConfigListEntry, ConfigText, ConfigInteger, ConfigYesNo, ConfigSubsection, configfile
 from Components.FileList import FileList
+from Components.Label import Label
 from Components.MenuList import MenuList
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.InfoBar import MoviePlayer
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
-from enigma import gFont, getDesktop, eTimer, eListboxPythonMultiContent, RT_HALIGN_LEFT, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, RT_VALIGN_CENTER, RT_WRAP
-from Tools.Directories import fileExists
 from Tools.BoundFunction import boundFunction
+from Tools.Directories import fileExists
 from Tools.Downloader import downloadWithProgress
 
-import requests, re, os, time, random, string
+from . import _
 
-from threading import Thread
-
-try:
-	from skin import TemplatedListFonts, componentSizes
-	isDreamOS = True
-except:
-	isDreamOS = False
 
 pname = "MediaInfo"
 pversion = "3.1.0"
@@ -47,10 +47,11 @@ already_open = False
 MoviePlayer.originalOpenEventView = MoviePlayer.openEventView
 
 config.plugins.mediainfo = ConfigSubsection()
-config.plugins.mediainfo.donemsg = ConfigYesNo(default = True)
-config.plugins.mediainfo.origskin = ConfigYesNo(default = True)
-config.plugins.mediainfo.dllimit = ConfigInteger(default = 2, limits = (1,20))
-config.plugins.mediainfo.savetopath = ConfigText(default = "/media/hdd/movie/",  fixed_size=False)
+config.plugins.mediainfo.donemsg = ConfigYesNo(default=True)
+config.plugins.mediainfo.origskin = ConfigYesNo(default=True)
+config.plugins.mediainfo.dllimit = ConfigInteger(default=2, limits=(1, 20))
+config.plugins.mediainfo.savetopath = ConfigText(default="/media/hdd/movie/", fixed_size=False)
+
 
 class downloadTask(Thread):
 	def __init__(self, session, filename, url, downloadName):
@@ -68,30 +69,30 @@ class downloadTask(Thread):
 
 	def start(self, checkname):
 		if self.checkRunningJobs() < int(config.plugins.mediainfo.dllimit.value):
-			print "[MediaInfo] Start Download: %s" % checkname
+			print("[MediaInfo] Start Download: %s" % checkname)
 			agent = 'Mozilla/5.0 (Windows NT 6.1; rv:32.0) Gecko/20100101 Firefox/32.0'
 			try:
 				self.download = downloadWithProgress(self.url, self.local, agent=agent)
 				self.download.addProgress(self.http_progress)
 				self.download.start().addCallback(self.http_finished).addErrback(self.http_failed)
-			except:
-				print "[MediaInfo] useragent wird nicht supportet."
+			except Exception:
+				print("[MediaInfo] useragent wird nicht supportet.")
 				self.download = downloadWithProgress(self.url, self.local)
 				self.download.addProgress(self.http_progress)
 				self.download.start().addCallback(self.http_finished).addErrback(self.http_failed)
 			return True
 		else:
-			print "[MediaInfo] Max Download Slots Full %s" % checkname
+			print("[MediaInfo] Max Download Slots Full %s" % checkname)
 			return False
 
 	def startNextJob(self):
-		print "[MediaInfo] Check for Next Download."
+		print("[MediaInfo] Check for Next Download.")
 		if self.checkRunningJobs() < int(config.plugins.mediainfo.dllimit.value):
 			if len(joblist) > 0:
 				for (filename, starttime, status, url, downloadName, job) in joblist:
 					if status == _("Waiting") and self.checkRunningJobs() < int(config.plugins.mediainfo.dllimit.value):
 						if job.start(filename):
-							print "mark as download", filename
+							print("mark as download", filename)
 							self.markJobAsDownload(filename)
 
 	def checkRunningJobs(self):
@@ -107,7 +108,7 @@ class downloadTask(Thread):
 		if len(joblist) > 0:
 			for (filename, starttime, status, url, downloadName, job) in joblist:
 				if filename == change_filename:
-					joblist_tmp.append((filename, int(time.time()), _("Download"), url, downloadName, job))
+					joblist_tmp.append((filename, int(time()), _("Download"), url, downloadName, job))
 				else:
 					joblist_tmp.append((filename, starttime, status, url, downloadName, job))
 			global joblist
@@ -142,7 +143,7 @@ class downloadTask(Thread):
 			self.download.stop()
 
 	def http_progress(self, recvbytes, totalbytes):
-		self.progress = int(self.end*recvbytes/float(totalbytes))
+		self.progress = int(self.end * recvbytes / float(totalbytes))
 		self.recvbytes = recvbytes
 		self.totalbytes = totalbytes
 
@@ -150,8 +151,8 @@ class downloadTask(Thread):
 		return [self.recvbytes, self.totalbytes, self.progress]
 
 	def http_finished(self, string=""):
-		print "[http_finished]" + str(string), self.filename, self.totalbytes
-		if not self.totalbytes > 250:
+		print("[http_finished]" + str(string), self.filename, self.totalbytes)
+		if self.totalbytes <= 250:
 			self.markJobAsError(self.filename)
 			self.backupJobs()
 		else:
@@ -165,7 +166,7 @@ class downloadTask(Thread):
 	def http_failed(self, failure_instance=None, error_message=""):
 		if error_message == "" and failure_instance is not None:
 			error_message = failure_instance.getErrorMessage()
-			print "[http_failed] " + error_message
+			print("[http_failed] " + error_message)
 			if not self.stop_manuell:
 				self.markJobAsError(self.filename)
 
@@ -178,6 +179,7 @@ class downloadTask(Thread):
 				download_file.close()
 		else:
 			download_file = open(downloadsfile, "w").close()
+
 
 class MediaInfoConfigScreen(Screen, ConfigListScreen):
 	desktopSize = getDesktop(0).size()
@@ -227,16 +229,16 @@ class MediaInfoConfigScreen(Screen, ConfigListScreen):
 	def __init__(self, session):
 		Screen.__init__(self, session)
 		if config.plugins.mediainfo.origskin.value:
-			self.skinName = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
+			self.skinName = ''.join([choice(ascii_letters + digits) for n in range(32)])
 		self.session = session
 
 		self["actions"] = ActionMap(["MI_Actions"], {
-			"ok"	:	self.ok,
-			"cancel":	self.cancel,
-			"red"	:	self.cancel,
-			"green"	:	self.save,
-			"left"	:	self.keyLeft,
-			"right"	:	self.keyRight
+			"ok": self.ok,
+			"cancel": self.cancel,
+			"red": self.cancel,
+			"green": self.save,
+			"left": self.keyLeft,
+			"right": self.keyRight
 		}, -1)
 
 		self['key_red'] = Label(_("Cancel"))
@@ -291,6 +293,7 @@ class MediaInfoConfigScreen(Screen, ConfigListScreen):
 	def cancel(self):
 		self.close()
 
+
 class MediaInfoFolderScreen(Screen):
 	desktopSize = getDesktop(0).size()
 	if desktopSize.height() == 1440:
@@ -339,15 +342,15 @@ class MediaInfoFolderScreen(Screen):
 		  <eLabel name="button blue" position="963,701" size="305,2" backgroundColor="#000064c7" zPosition="5" />
 		</screen>"""
 
-	def __init__(self, session, initDir, plugin_path = None):
+	def __init__(self, session, initDir, plugin_path=None):
 		Screen.__init__(self, session)
 		if config.plugins.mediainfo.origskin.value:
-			self.skinName = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
+			self.skinName = ''.join([choice(ascii_letters + digits) for n in range(32)])
 
-		if not os.path.isdir(initDir):
+		if not isdir(initDir):
 			initDir = "/media/hdd/movie/"
 
-		self["folderlist"] = FileList(initDir, inhibitMounts = False, inhibitDirs = False, showMountpoints = False, showFiles = False)
+		self["folderlist"] = FileList(initDir, inhibitMounts=False, inhibitDirs=False, showMountpoints=False, showFiles=False)
 		self["media"] = Label()
 		self["actions"] = ActionMap(["MI_Actions"],
 		{
@@ -404,6 +407,7 @@ class MediaInfoFolderScreen(Screen):
 		currFolder = self["folderlist"].getSelection()[0]
 		self["media"].setText(currFolder)
 
+
 class MediaInfo(Screen):
 	desktopSize = getDesktop(0).size()
 	if desktopSize.height() == 1440:
@@ -452,18 +456,6 @@ class MediaInfo(Screen):
 		  <eLabel name="button blue" position="963,701" size="305,2" backgroundColor="#000064c7" zPosition="5" />
 		</screen>"""
 
-	if isDreamOS:
-		SKIN_COMPONENT_KEY = "MediaInfoList"
-		SKIN_COMPONENT_PROGRESS_HEIGHT = "progressHeight"
-		SKIN_COMPONENT_PROGRESS_WIDTH = "progressWidth"
-		SKIN_COMPONENT_STATUS_WIDTH = "statusWidth"
-		SKIN_COMPONENT_MBINFO_WIDTH = "mbinfoWidth"
-		SKIN_COMPONENT_DLINFO_WIDTH = "dlinfoWidth"
-		SKIN_COMPONENT_PROGRESSINFO_WIDTH = "progressinfoWidth"
-		SKIN_COMPONENT_SPACER_WIDTH = "spacerWidth"
-		SKIN_COMPONENT_TEXT_X = "textX"	
-		SKIN_COMPONENT_TEXT_Y = "textY"				
-
 	def ListEntry(self, entry):
 		desktopSize = getDesktop(0).size()
 		if desktopSize.height() == 1440:
@@ -478,41 +470,26 @@ class MediaInfo(Screen):
 
 		listWidth = self['downloadList'].instance.size().width()
 		itemHeight = self['downloadList'].l.getItemSize().height()
-		textHeight = itemHeight/2
+		textHeight = itemHeight / 2
 		self.ml.l.setItemHeight(itemHeight)
-		if isDreamOS:
-			sizes = componentSizes[MediaInfo.SKIN_COMPONENT_KEY]
-			progressHeight = sizes.get(MediaInfo.SKIN_COMPONENT_PROGRESS_HEIGHT, 16*zoomfactor)
-			progressHPos = (textHeight-progressHeight)/2
-			progressWidth = sizes.get(MediaInfo.SKIN_COMPONENT_PROGRESS_WIDTH, 136*zoomfactor)
-			statusWidth = sizes.get(MediaInfo.SKIN_COMPONENT_STATUS_WIDTH, 160*zoomfactor)
-			mbinfoWidth = sizes.get(MediaInfo.SKIN_COMPONENT_MBINFO_WIDTH, 208*zoomfactor)
-			dlinfoWidth = sizes.get(MediaInfo.SKIN_COMPONENT_DLINFO_WIDTH, 160*zoomfactor)
-			progressinfoWidth = sizes.get(MediaInfo.SKIN_COMPONENT_PROGRESSINFO_WIDTH, 64*zoomfactor)
-			spacerWidth = sizes.get(MediaInfo.SKIN_COMPONENT_SPACER_WIDTH, 8*zoomfactor)
-			textX = sizes.get(MediaInfo.SKIN_COMPONENT_TEXT_X, 0)
-			textY = sizes.get(MediaInfo.SKIN_COMPONENT_TEXT_Y, 0)
-			tlf = TemplatedListFonts()
-			self.ml.l.setFont(0, gFont(tlf.face(tlf.MEDIUM), tlf.size(tlf.MEDIUM)))
-		else:
-			progressHeight = 16*zoomfactor
-			progressHPos = (textHeight-progressHeight)/2
-			progressWidth = 136*zoomfactor
-			statusWidth = 160*zoomfactor
-			mbinfoWidth = 208*zoomfactor
-			dlinfoWidth = 160*zoomfactor
-			progressinfoWidth = 64*zoomfactor
-			spacerWidth = 8*zoomfactor
-			textX = 0
-			textY = 0
-			self.ml.l.setFont(0, gFont('Regular', textHeight - 2 * sizefactor))
+		progressHeight = 16 * zoomfactor
+		progressHPos = (textHeight - progressHeight) / 2
+		progressWidth = 136 * zoomfactor
+		statusWidth = 160 * zoomfactor
+		mbinfoWidth = 208 * zoomfactor
+		dlinfoWidth = 160 * zoomfactor
+		progressinfoWidth = 64 * zoomfactor
+		spacerWidth = 8 * zoomfactor
+		textX = 0
+		textY = 0
+		self.ml.l.setFont(0, gFont('Regular', textHeight - 2 * sizefactor))
 
 		(filename, status, progress, dlspeed, currentSizeMB, totalMB) = entry
 		if status == _("Download"):
 			mbinfo = "%s MB/%s MB" % (str(currentSizeMB), str(totalMB))
 			dlinfo = "%s" % dlspeed
 			prog = int(progress)
-			proginfo = str(progress)+"%"
+			proginfo = str(progress) + "%"
 		elif status == _("Completed"):
 			mbinfo = ""
 			dlinfo = ""
@@ -525,18 +502,18 @@ class MediaInfo(Screen):
 			proginfo = "0%"
 
 		return [entry,
-		(eListboxPythonMultiContent.TYPE_TEXT, textX, textY, listWidth-progressWidth-progressinfoWidth-statusWidth-3*spacerWidth, itemHeight, 0, RT_HALIGN_LEFT | RT_WRAP, filename),
-		(eListboxPythonMultiContent.TYPE_PROGRESS, listWidth-progressWidth-progressinfoWidth-statusWidth-2*spacerWidth, progressHPos, progressWidth, progressHeight, prog),
-		(eListboxPythonMultiContent.TYPE_TEXT, listWidth-progressinfoWidth-statusWidth-spacerWidth, 0, progressinfoWidth, textHeight, 0, RT_HALIGN_RIGHT | RT_VALIGN_CENTER, proginfo),
-		(eListboxPythonMultiContent.TYPE_TEXT, listWidth-statusWidth, 0, statusWidth, textHeight, 0, RT_HALIGN_CENTER | RT_VALIGN_CENTER, status),
-		(eListboxPythonMultiContent.TYPE_TEXT, listWidth-progressWidth-progressinfoWidth-statusWidth-2*spacerWidth, textHeight, mbinfoWidth, textHeight, 0, RT_HALIGN_LEFT | RT_VALIGN_CENTER, mbinfo),
-		(eListboxPythonMultiContent.TYPE_TEXT, listWidth-dlinfoWidth, textHeight, dlinfoWidth, textHeight, 0, RT_HALIGN_CENTER | RT_VALIGN_CENTER, dlinfo),
+		(eListboxPythonMultiContent.TYPE_TEXT, textX, textY, listWidth - progressWidth - progressinfoWidth - statusWidth - 3 * spacerWidth, itemHeight, 0, RT_HALIGN_LEFT | RT_WRAP, filename),
+		(eListboxPythonMultiContent.TYPE_PROGRESS, listWidth - progressWidth - progressinfoWidth - statusWidth - 2 * spacerWidth, progressHPos, progressWidth, progressHeight, prog),
+		(eListboxPythonMultiContent.TYPE_TEXT, listWidth - progressinfoWidth - statusWidth - spacerWidth, 0, progressinfoWidth, textHeight, 0, RT_HALIGN_RIGHT | RT_VALIGN_CENTER, proginfo),
+		(eListboxPythonMultiContent.TYPE_TEXT, listWidth - statusWidth, 0, statusWidth, textHeight, 0, RT_HALIGN_CENTER | RT_VALIGN_CENTER, status),
+		(eListboxPythonMultiContent.TYPE_TEXT, listWidth - progressWidth - progressinfoWidth - statusWidth - 2 * spacerWidth, textHeight, mbinfoWidth, textHeight, 0, RT_HALIGN_LEFT | RT_VALIGN_CENTER, mbinfo),
+		(eListboxPythonMultiContent.TYPE_TEXT, listWidth - dlinfoWidth, textHeight, dlinfoWidth, textHeight, 0, RT_HALIGN_CENTER | RT_VALIGN_CENTER, dlinfo),
 		]
 
 	def __init__(self, session):
 		Screen.__init__(self, session)
 		if config.plugins.mediainfo.origskin.value:
-			self.skinName = ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)])
+			self.skinName = ''.join([choice(ascii_letters + digits) for n in range(32)])
 		self.session = session
 
 		self['head'] = Label()
@@ -549,23 +526,20 @@ class MediaInfo(Screen):
 		self.ml = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
 		self['downloadList'] = self.ml
 
-		self["actions"]  = ActionMap(["MI_Actions"], {
-			"ok"	:	self.exit,
-			"info"	:	self.exit,
-			"cancel":	self.exit,
-			"back"	:	self.exit,
-			"red"	:	self.jobRemove,
-			"green"	:	self.jobStart,
-			"yellow":	self.jobCheck,
-			"blue"	:	self.mediaInfoSetup
+		self["actions"] = ActionMap(["MI_Actions"], {
+			"ok": self.exit,
+			"info": self.exit,
+			"cancel": self.exit,
+			"back": self.exit,
+			"red": self.jobRemove,
+			"green": self.jobStart,
+			"yellow": self.jobCheck,
+			"blue": self.mediaInfoSetup
 		}, -1)
 
 		self.refreshTimer = eTimer()
 		self.setTitle(pname + " " + pversion)
-		if isDreamOS:
-			self.refreshTimer_conn1 = self.refreshTimer.timeout.connect(self.showJobs)
-		else:
-			self.refreshTimer.callback.append(self.showJobs)
+		self.refreshTimer.callback.append(self.showJobs)
 		self.refreshTimer.start(1000)
 		self.onLayoutFinish.append(self.showJobs)
 
@@ -576,46 +550,46 @@ class MediaInfo(Screen):
 		if not filename:
 			filename = service.info().getName()
 		filename = ''.join(re.split(r'[.;:!&?,|]', filename))
-		quessFileType = re.search('(\.avi|\.mp4|\.ts|\.flv|\.mp3|\.mpg|\.mpeg|\.mkv)', os.path.splitext(url)[-1], re.I)
+		quessFileType = re.search(r'(\.avi|\.mp4|\.ts|\.flv|\.mp3|\.mpg|\.mpeg|\.mkv)', splitext(url)[-1], re.I)
 		if quessFileType:
 			filetype = quessFileType.group(1)
 		else:
 			filetype = ".mp4"
-		filename = filename.replace('\\t','').strip()
-		filename = "%s%s" % (filename.replace(' ','_').replace('/','_'), filetype)
+		filename = filename.replace('\\t', '').strip()
+		filename = "%s%s" % (filename.replace(' ', '_').replace('/', '_'), filetype)
 
 		local = "%s%s" % (config.plugins.mediainfo.savetopath.value, filename)
 		if fileExists(local):
 			self.session.openWithCallback(boundFunction(self.jobStartContinue, filename, url), MessageBox, _("File already exists, do you want to overwrite the existing file?"), MessageBox.TYPE_YESNO)
-			print "[MediaInfo] file already exists: %s" % filename
+			print("[MediaInfo] file already exists: %s" % filename)
 		else:
 			self.jobStartContinue(filename, url, True)
 
 	def jobStartContinue(self, filename, url, answer):
 		if answer is True:
 			if not any(filename in job for job in joblist):
-				if re.match('.*?http', url, re.S) and not re.match('.*?\.m3u8', url, re.S) and not re.match('.*?\.mpd', url, re.S):
+				if re.match('.*?http', url, re.S) and not re.match(r'.*?\.m3u8', url, re.S) and not re.match(r'.*?\.mpd', url, re.S):
 					try:
 						req = requests.session()
-						page = req.head(url, headers={'Content-Type':'application/x-www-form-urlencoded', 'User-agent':'Mozilla/5.0 (Windows NT 6.1; rv:32.0) Gecko/20100101 Firefox/32.0'},  verify=False)
-						print "[Download] added: %s - %s" % (filename, url)
+						page = req.head(url, headers={'Content-Type': 'application/x-www-form-urlencoded', 'User-agent': 'Mozilla/5.0 (Windows NT 6.1; rv:32.0) Gecko/20100101 Firefox/32.0'}, verify=False)
+						print("[Download] added: %s - %s" % (filename, url))
 						self.addJob = downloadTask(self.session, filename, url, None)
 						global joblist
-						joblist.append((filename, int(time.time()), _("Waiting"), url, None, self.addJob))
+						joblist.append((filename, int(time()), _("Waiting"), url, None, self.addJob))
 						self.jobDownload(filename)
 						self.backupJobs()
-					except requests.exceptions.HTTPError, error:
-						print error
+					except requests.exceptions.HTTPError as error:
+						print(error)
 						message = self.session.open(MessageBox, (_("Error: %s") % error), MessageBox.TYPE_INFO, timeout=5)
-					except requests.exceptions.SSLError, error:
-						print error
+					except requests.exceptions.SSLError as error:
+						print(error)
 						message = self.session.open(MessageBox, (_("Error: %s") % error), MessageBox.TYPE_INFO, timeout=5)
 					except:
 						message = self.session.open(MessageBox, ("Unknown Error"), MessageBox.TYPE_INFO, timeout=5)
 				else:
 					message = self.session.open(MessageBox, (_("Download of RTMP/HLS/MPEG-DASH streams is not supported.")), MessageBox.TYPE_INFO, timeout=5)
 			else:
-				print "[MediaInfo] dupe: %s" % filename
+				print("[MediaInfo] dupe: %s" % filename)
 
 	def showJobs(self):
 		self.taskList = []
@@ -631,8 +605,8 @@ class MediaInfo(Screen):
 			if status == _("Download"):
 				showDownload += 1
 				(recvbytes, totalbytes, progress) = job.current_progress()
-				currentSizeMB = int(recvbytes/1024/1024)
-				totalMB = int(totalbytes/1024/1024)
+				currentSizeMB = int(recvbytes / 1024 / 1024)
+				totalMB = int(totalbytes / 1024 / 1024)
 				dlspeed = self.calcDnSpeed(int(starttime), currentSizeMB, totalMB)
 				self.dllist.append((filename, status, progress, dlspeed, currentSizeMB, totalMB))
 			elif status == _("Waiting"):
@@ -651,7 +625,7 @@ class MediaInfo(Screen):
 		self.ml.setList(map(self.ListEntry, self.taskList))
 
 	def calcDnSpeed(self, starttime, currentSizeMB, totalMB):
-		endtime = int(time.time())
+		endtime = int(time())
 		runtime = endtime - int(starttime)
 		if runtime == 0:
 			runtime = 1
@@ -660,7 +634,7 @@ class MediaInfo(Screen):
 			dlspeed = "%.2f MB/s" % (float(dlspeed) / 1024)
 		else:
 			dlspeed = "%s KB/s" % dlspeed
-		return dlspeed
+		return int(dlspeed)
 
 	def jobCheck(self):
 		exist = self['downloadList'].getCurrent()
@@ -705,7 +679,7 @@ class MediaInfo(Screen):
 		elif check_status == _("Waiting") or _("Completed") or _("Error"):
 			joblist_tmp = []
 			for (filename, starttime, status, url, downloadName, job) in joblist:
-				if not filename == check_filename:
+				if filename != check_filename:
 					joblist_tmp.append((filename, starttime, status, url, downloadName, job))
 			global joblist
 			joblist = joblist_tmp
@@ -729,6 +703,7 @@ class MediaInfo(Screen):
 		already_open = False
 		self.close()
 
+
 def openMoviePlayerEventView(self):
 	already_open = False
 	if True and not already_open:
@@ -743,12 +718,14 @@ def openMoviePlayerEventView(self):
 	else:
 		MoviePlayer.originalOpenEventView(self)
 
+
 MoviePlayer.openEventView = openMoviePlayerEventView
 
+
 def autostart(reason, **kwargs):
-	if (reason == 0) and (kwargs.has_key("session")):
+	if (reason == 0) and ("session" in kwargs):
 		session = kwargs["session"]
-		print "[MediaInfo] READ OLD JOBS !!!"
+		print("[MediaInfo] READ OLD JOBS !!!")
 		if fileExists(downloadsfile):
 			dlfile = open(downloadsfile, "r")
 			for rawData in dlfile.readlines():
@@ -758,17 +735,19 @@ def autostart(reason, **kwargs):
 					(filename, status, url, downloadName) = data[0]
 					addJob = downloadTask(session, filename, url, downloadName)
 					if status == _("Download"):
-						joblist.append((filename, int(time.time()), _("Waiting"), url, downloadName, addJob))
+						joblist.append((filename, int(time()), _("Waiting"), url, downloadName, addJob))
 					elif status == _("Error"):
-						joblist.append((filename, int(time.time()), _("Waiting"), url, downloadName, addJob))
+						joblist.append((filename, int(time()), _("Waiting"), url, downloadName, addJob))
 					else:
-						joblist.append((filename, int(time.time()), status, url, downloadName, addJob))
+						joblist.append((filename, int(time()), status, url, downloadName, addJob))
 		else:
 			dlfile = open(downloadsfile, "w").close()
+
 
 def main(session, **kwargs):
 	session.open(MediaInfo)
 
+
 def Plugins(**kwargs):
-	return [PluginDescriptor(name="MediaInfo", description="Stream Downloader", where = [PluginDescriptor.WHERE_PLUGINMENU], icon="plugin.png", fnc=main),
+	return [PluginDescriptor(name="MediaInfo", description="Stream Downloader", where=[PluginDescriptor.WHERE_PLUGINMENU], icon="plugin.png", fnc=main),
 			PluginDescriptor(where=[PluginDescriptor.WHERE_SESSIONSTART], fnc=autostart)]
