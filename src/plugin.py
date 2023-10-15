@@ -39,6 +39,7 @@ from . import _
 pname = "MediaInfo"
 pversion = "3.1.0"
 
+global joblist
 joblist = []
 
 downloadsfile = "/usr/lib/enigma2/python/Plugins/Extensions/MediaInfo/downloads"
@@ -88,6 +89,7 @@ class downloadTask(Thread):
 	def startNextJob(self):
 		print("[MediaInfo] Check for Next Download.")
 		if self.checkRunningJobs() < int(config.plugins.mediainfo.dllimit.value):
+			global joblist
 			if len(joblist) > 0:
 				for (filename, starttime, status, url, downloadName, job) in joblist:
 					if status == _("Waiting") and self.checkRunningJobs() < int(config.plugins.mediainfo.dllimit.value):
@@ -97,6 +99,7 @@ class downloadTask(Thread):
 
 	def checkRunningJobs(self):
 		countRuningJobs = 0
+		global joblist
 		if len(joblist) > 0:
 			for (filename, starttime, status, url, downloadName, job) in joblist:
 				if status == _("Download"):
@@ -105,35 +108,35 @@ class downloadTask(Thread):
 
 	def markJobAsDownload(self, change_filename):
 		joblist_tmp = []
+		global joblist
 		if len(joblist) > 0:
 			for (filename, starttime, status, url, downloadName, job) in joblist:
 				if filename == change_filename:
 					joblist_tmp.append((filename, int(time()), _("Download"), url, downloadName, job))
 				else:
 					joblist_tmp.append((filename, starttime, status, url, downloadName, job))
-			global joblist
 			joblist = joblist_tmp
 
 	def markJobAsFinish(self, change_filename):
 		joblist_tmp = []
+		global joblist
 		if len(joblist) > 0:
 			for (filename, starttime, status, url, downloadName, job) in joblist:
 				if filename == change_filename:
 					joblist_tmp.append((filename, starttime, _("Completed"), url, downloadName, job))
 				else:
 					joblist_tmp.append((filename, starttime, status, url, downloadName, job))
-			global joblist
 			joblist = joblist_tmp
 
 	def markJobAsError(self, change_filename):
 		joblist_tmp = []
+		global joblist
 		if len(joblist) > 0:
 			for (filename, starttime, status, url, downloadName, job) in joblist:
 				if filename == change_filename:
 					joblist_tmp.append((filename, starttime, _("Error"), url, downloadName, job))
 				else:
 					joblist_tmp.append((filename, starttime, status, url, downloadName, job))
-			global joblist
 			joblist = joblist_tmp
 			self.backupJobs()
 
@@ -171,6 +174,7 @@ class downloadTask(Thread):
 				self.markJobAsError(self.filename)
 
 	def backupJobs(self):
+		global joblist
 		if len(joblist) > 0:
 			if fileExists(downloadsfile):
 				download_file = open(downloadsfile, "w")
@@ -183,21 +187,7 @@ class downloadTask(Thread):
 
 class MediaInfoConfigScreen(Screen, ConfigListScreen):
 	desktopSize = getDesktop(0).size()
-	if desktopSize.height() == 1440:
-		skin = """
-		<screen name="MediaInfo Config" title="" position="center,center" size="2560,1440" flags="wfNoBorder">
-		  <widget render="Label" source="Title" position="0,0" size="2560,100" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;40" halign="center" valign="center" />
-		  <widget name="config" position="24,120" size="2512,1200" transparent="1" scrollbarMode="showOnDemand" />
-		  <widget name="key_red" position="24,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_green" position="658,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_yellow" position="1292,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_blue" position="1926,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <eLabel name="button red" position="24,1402" size="610,4" backgroundColor="#00f23d21" zPosition="5" />
-		  <eLabel name="button green" position="658,1402" size="610,4" backgroundColor="#0031a500" zPosition="5" />
-		  <eLabel name="button yellow" position="1292,1402" size="610,4" backgroundColor="#00e5b243" zPosition="5" />
-		  <eLabel name="button blue" position="1926,1402" size="610,4" backgroundColor="#000064c7" zPosition="5" />
-		</screen>"""
-	elif desktopSize.height() == 1080:
+	if desktopSize.width() >= 1920:
 		skin = """
 		<screen name="MediaInfo Config" title="" position="center,center" size="1920,1080" flags="wfNoBorder">
 		  <widget render="Label" source="Title" position="0,0" size="1920,64" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;29" halign="center" valign="center" />
@@ -296,22 +286,7 @@ class MediaInfoConfigScreen(Screen, ConfigListScreen):
 
 class MediaInfoFolderScreen(Screen):
 	desktopSize = getDesktop(0).size()
-	if desktopSize.height() == 1440:
-		skin = """
-		<screen name="MediaInfo Folder" title="" position="center,center" size="2560,1440" flags="wfNoBorder">
-		  <widget render="Label" source="Title" position="0,0" size="2560,100" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;40" halign="center" valign="center" />
-		  <widget name="media" position="24,100" size="2512,100" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;40" halign="left" valign="center" />
-		  <widget name="folderlist" position="24,210" size="2512,1100" transparent="1" scrollbarMode="showOnDemand" />
-		  <widget name="key_red" position="24,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_green" position="658,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_yellow" position="1292,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_blue" position="1926,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <eLabel name="button red" position="24,1402" size="610,4" backgroundColor="#00f23d21" zPosition="5" />
-		  <eLabel name="button green" position="658,1402" size="610,4" backgroundColor="#0031a500" zPosition="5" />
-		  <eLabel name="button yellow" position="1292,1402" size="610,4" backgroundColor="#00e5b243" zPosition="5" />
-		  <eLabel name="button blue" position="1926,1402" size="610,4" backgroundColor="#000064c7" zPosition="5" />
-		</screen>"""
-	elif desktopSize.height() == 1080:
+	if desktopSize.width() >= 1920:
 		skin = """
 		<screen name="MediaInfo Folder" title="" position="center,center" size="1920,1080" flags="wfNoBorder">
 		  <widget render="Label" source="Title" position="0,0" size="1920,64" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;29" halign="center" valign="center" />
@@ -410,22 +385,7 @@ class MediaInfoFolderScreen(Screen):
 
 class MediaInfo(Screen):
 	desktopSize = getDesktop(0).size()
-	if desktopSize.height() == 1440:
-		skin = """
-		<screen name="MediaInfo" title="" position="center,center" size="2560,1440" flags="wfNoBorder">
-		  <widget render="Label" source="Title" position="0,0" size="2560,100" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;40" halign="center" valign="center" />
-		  <widget name="head" position="0,100" size="2560,100" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;40" halign="center" valign="center" />
-		  <widget name="downloadList" position="24,230" size="2512,1100" itemHeight="100" foregroundColor="#00ffffff" scrollbarMode="showOnDemand" transparent="1" />
-		  <widget name="key_red" position="24,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_green" position="658,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_yellow" position="1292,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <widget name="key_blue" position="1926,1348" size="610,50" transparent="1" font="Regular;32" valign="center" halign="center" zPosition="5" />
-		  <eLabel name="button red" position="24,1402" size="610,4" backgroundColor="#00f23d21" zPosition="5" />
-		  <eLabel name="button green" position="658,1402" size="610,4" backgroundColor="#0031a500" zPosition="5" />
-		  <eLabel name="button yellow" position="1292,1402" size="610,4" backgroundColor="#00e5b243" zPosition="5" />
-		  <eLabel name="button blue" position="1926,1402" size="610,4" backgroundColor="#000064c7" zPosition="5" />
-		</screen>"""
-	elif desktopSize.height() == 1080:
+	if desktopSize.width() >= 1920:
 		skin = """
 		<screen name="MediaInfo" title="" position="center,center" size="1920,1080" flags="wfNoBorder">
 		  <widget render="Label" source="Title" position="0,0" size="1920,64" foregroundColor="#00ffffff" transparent="0" zPosition="5" font="Regular;29" halign="center" valign="center" />
@@ -458,10 +418,10 @@ class MediaInfo(Screen):
 
 	def ListEntry(self, entry):
 		desktopSize = getDesktop(0).size()
-		if desktopSize.height() == 1440:
-			sizefactor = 4
-			zoomfactor = 2
-		elif desktopSize.height() == 1080:
+		if desktopSize.width() == 3840:
+			sizefactor = 7
+			zoomfactor = 2.7
+		elif desktopSize.width() == 1920:
 			sizefactor = 3
 			zoomfactor = 1.3
 		else:
@@ -480,8 +440,6 @@ class MediaInfo(Screen):
 		dlinfoWidth = 160 * zoomfactor
 		progressinfoWidth = 64 * zoomfactor
 		spacerWidth = 8 * zoomfactor
-		textX = 0
-		textY = 0
 		self.ml.l.setFont(0, gFont('Regular', textHeight - 2 * sizefactor))
 
 		(filename, status, progress, dlspeed, currentSizeMB, totalMB) = entry
@@ -502,7 +460,7 @@ class MediaInfo(Screen):
 			proginfo = "0%"
 
 		return [entry,
-		(eListboxPythonMultiContent.TYPE_TEXT, textX, textY, listWidth - progressWidth - progressinfoWidth - statusWidth - 3 * spacerWidth, itemHeight, 0, RT_HALIGN_LEFT | RT_WRAP, filename),
+		(eListboxPythonMultiContent.TYPE_TEXT, 0, 0, listWidth - progressWidth - progressinfoWidth - statusWidth - 3 * spacerWidth, itemHeight, 0, RT_HALIGN_LEFT | RT_WRAP, filename),
 		(eListboxPythonMultiContent.TYPE_PROGRESS, listWidth - progressWidth - progressinfoWidth - statusWidth - 2 * spacerWidth, progressHPos, progressWidth, progressHeight, prog),
 		(eListboxPythonMultiContent.TYPE_TEXT, listWidth - progressinfoWidth - statusWidth - spacerWidth, 0, progressinfoWidth, textHeight, 0, RT_HALIGN_RIGHT | RT_VALIGN_CENTER, proginfo),
 		(eListboxPythonMultiContent.TYPE_TEXT, listWidth - statusWidth, 0, statusWidth, textHeight, 0, RT_HALIGN_CENTER | RT_VALIGN_CENTER, status),
@@ -567,6 +525,7 @@ class MediaInfo(Screen):
 
 	def jobStartContinue(self, filename, url, answer):
 		if answer is True:
+			global joblist
 			if not any(filename in job for job in joblist):
 				if re.match('.*?http', url, re.S) and not re.match(r'.*?\.m3u8', url, re.S) and not re.match(r'.*?\.mpd', url, re.S):
 					try:
@@ -574,7 +533,6 @@ class MediaInfo(Screen):
 						page = req.head(url, headers={'Content-Type': 'application/x-www-form-urlencoded', 'User-agent': 'Mozilla/5.0 (Windows NT 6.1; rv:32.0) Gecko/20100101 Firefox/32.0'}, verify=False)
 						print("[Download] added: %s - %s" % (filename, url))
 						self.addJob = downloadTask(self.session, filename, url, None)
-						global joblist
 						joblist.append((filename, int(time()), _("Waiting"), url, None, self.addJob))
 						self.jobDownload(filename)
 						self.backupJobs()
@@ -601,6 +559,7 @@ class MediaInfo(Screen):
 		self.waitlist = []
 		self.completelist = []
 		self.errorlist = []
+		global joblist
 		for (filename, starttime, status, url, downloadName, job) in joblist:
 			if status == _("Download"):
 				showDownload += 1
@@ -634,7 +593,7 @@ class MediaInfo(Screen):
 			dlspeed = "%.2f MB/s" % (float(dlspeed) / 1024)
 		else:
 			dlspeed = "%s KB/s" % dlspeed
-		return int(dlspeed)
+		return dlspeed
 
 	def jobCheck(self):
 		exist = self['downloadList'].getCurrent()
@@ -648,6 +607,7 @@ class MediaInfo(Screen):
 			self.jobDownload(filename)
 
 	def jobDownload(self, change_filename):
+		global joblist
 		for (filename, starttime, status, url, downloadName, job) in joblist:
 			if filename == change_filename:
 				if job.start(filename):
@@ -656,6 +616,7 @@ class MediaInfo(Screen):
 
 	def jobStop(self, change_filename, remove=False):
 		joblist_tmp = []
+		global joblist
 		for (filename, starttime, status, url, downloadName, job) in joblist:
 			if filename == change_filename:
 				job.stop()
@@ -663,7 +624,6 @@ class MediaInfo(Screen):
 					joblist_tmp.append((filename, starttime, _("Waiting"), url, downloadName, job))
 			else:
 				joblist_tmp.append((filename, starttime, status, url, downloadName, job))
-		global joblist
 		joblist = joblist_tmp
 		self.showJobs()
 
@@ -678,15 +638,16 @@ class MediaInfo(Screen):
 			self.showJobs()
 		elif check_status == _("Waiting") or _("Completed") or _("Error"):
 			joblist_tmp = []
+			global joblist
 			for (filename, starttime, status, url, downloadName, job) in joblist:
 				if filename != check_filename:
 					joblist_tmp.append((filename, starttime, status, url, downloadName, job))
-			global joblist
 			joblist = joblist_tmp
 			self.showJobs()
 			self.backupJobs()
 
 	def backupJobs(self):
+		global joblist
 		if len(joblist) > 0:
 			if fileExists(downloadsfile):
 				download_file = open(downloadsfile, "w")
@@ -731,9 +692,9 @@ def autostart(reason, **kwargs):
 			for rawData in dlfile.readlines():
 				data = re.findall('"(.*?)" "(.*?)" "(.*?)" "(.*?)"', rawData, re.S)
 				if data:
-					global joblist
 					(filename, status, url, downloadName) = data[0]
 					addJob = downloadTask(session, filename, url, downloadName)
+					global joblist
 					if status == _("Download"):
 						joblist.append((filename, int(time()), _("Waiting"), url, downloadName, addJob))
 					elif status == _("Error"):
