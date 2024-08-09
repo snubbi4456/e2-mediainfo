@@ -1,4 +1,4 @@
-﻿#######################################################################
+#######################################################################
 # maintainers: einfall/dhwz
 #
 # This plugin is free software, you are allowed to
@@ -581,7 +581,7 @@ class MediaInfo(Screen):
 		info = info % (str(showDownload), str(len(joblist)), str(config.plugins.mediainfo.dllimit.value), str(showWait), str(showComplete), str(showError))
 		self["head"].setText(info)
 		self.taskList = self.dllist + self.waitlist + self.completelist + self.errorlist
-		self.ml.setList(map(self.ListEntry, self.taskList))
+		self.ml.setList(list(map(self.ListEntry, self.taskList)))
 
 	def calcDnSpeed(self, starttime, currentSizeMB, totalMB):
 		endtime = int(time())
