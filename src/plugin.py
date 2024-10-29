@@ -355,7 +355,7 @@ class MediaInfoFolderScreen(Screen):
 			self.fullpath = self["folderlist"].getSelection()[0]
 		else:
 			self.fullpath = self["folderlist"].getSelection()[0] + "/"
-	  	self.close(self.fullpath)
+		self.close(self.fullpath)
 
 	def up(self):
 		self["folderlist"].up()
